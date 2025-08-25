@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Conciliación</title>
+</head>
+<body>
+  <h2>Conciliación de Archivos</h2>
+
+  <form id="conciliacion-form">
+    <label>Extracto PDF:</label>
+    <input type="file" id="pdfFile" accept=".pdf" required />
+    <br /><br />
+    <label>Contabilidad XLSX:</label>
+    <input type="file" id="xlsxFile" accept=".xlsx" required />
+    <br /><br />
+    <button type="submit">Conciliar</button>
+  </form>
+
+  <script>
+    const form = document.getElementById('conciliacion-form');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const pdfFile = document.getElementById('pdfFile').files[0];
+      const xlsxFile = document.getElementById('xlsxFile').files[0];
+
+      if (!pdfFile || !xlsxFile) {
+        alert('Por favor selecciona ambos archivos.');
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('pdf_file', pdfFile);
+      formData.append('contabilidad_file', xlsxFile);
+
+      try {
+        const response = await fetch('http://57.154.180.183:8000/conciliacion-unificada/', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Error en la API: ${response.statusText}`);
+        }
+
+        const blob = await response.blob();
+
+        // Descargar el archivo Excel resultante
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'resultado_conciliacion.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+
+      } catch (error) {
+        alert('Error al procesar la solicitud: ' + error.message);
+      }
+    });
+  </script>
+</body>
+</html>
+
