@@ -11,16 +11,17 @@ def conciliar_movimientos(contabilidad_path: str, df_extracto: pd.DataFrame) -> 
 
     df1 = contabilidad_path.copy()
     df2 = df_extracto.copy()   
+    df1.columns = ['FECHA', 'Concepto Contabilidad', 'VALOR']
 
-    # --- Preparación del df1 ---
-    df1['FECHA'] = pd.to_datetime(df1['FECHA']).dt.strftime('%Y-%m-%d')
+   # --- Preparación del df1 ---
+    df1['FECHA'] = pd.to_datetime(df1['FECHA'], dayfirst=True, errors="coerce").dt.strftime("%d/%m/%Y")
     df1['VALOR'] = df1['VALOR'].astype(int)
     df1['clave_unica'] = df1['FECHA'] + '_' + df1['VALOR'].astype(str)
 
     # --- Preparación del df2 ---
+    df2['FECHA'] = pd.to_datetime(df2['FECHA'], dayfirst=True, errors="coerce").dt.strftime("%d/%m/%Y")
     df2['VALOR'] = df2['VALOR'].astype(int)
-    df2['FECHA'] = pd.to_datetime(df2['FECHA']).dt.strftime('%Y-%m-%d')
-    df2['clave_unica'] = df2['FECHA'] + '_' + df2['VALOR'].astype(str) 
+    df2['clave_unica'] = df2['FECHA'] + '_' + df2['VALOR'].astype(str)
 
 
 

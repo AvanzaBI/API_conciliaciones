@@ -87,8 +87,10 @@ def procesar_pdf(file_pdf: UploadFile) -> pd.DataFrame:
     df.loc[mask_fechas, "FECHA"] = df.loc[mask_fechas, "FECHA"] + "/" + anio_pdf
 
     # Convertir a formato YYYY-MM-DD
-    df["FECHA"] = pd.to_datetime(df["FECHA"], dayfirst=True, errors="coerce").dt.strftime("%Y-%m-%d")
-    df = df.dropna(subset=["FECHA"])
+    df["FECHA"] = (
+    pd.to_datetime(df["FECHA"], dayfirst=True, errors="coerce")
+      .dt.strftime("%d/%m/%Y")
+    )
 
     # Seleccionar y limpiar columnas finales
     df_final = df[["FECHA", "DESCRIPCION", "VALOR"]].copy()
