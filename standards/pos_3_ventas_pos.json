@@ -1,0 +1,21 @@
+{
+  "report_type": "pos_3_ventas_pos",
+  "display_name": "POS 3 – Ventas POS",
+  "description": "Informe de ventas POS 3",
+  "storage_path": "input/Compañia 1/5. Ventas/06. POS 3",
+  "storage_path_format": "year_month_name",
+  "source_hint": "POSINT / Informes / Todos los puntos de venta / Informes / Facturado real / Colocar fecha / Todas las colecciones / Informes / Segundo rayo",
+  "columns": [
+    "Fecha",
+    "ID_Punto_Venta",
+    "Nombre_Punto_Venta",
+    "ID_Producto",
+    "Nombre_Producto",
+    "Cantidad",
+    "Precio_Unitario",
+    "Total_Venta",
+    "Metodo_Pago",
+    "Vendedor"
+  ]
+}
+

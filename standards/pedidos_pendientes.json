@@ -1,0 +1,21 @@
+{
+  "report_type": "pedidos_pendientes",
+  "display_name": "Pedidos Pendientes",
+  "description": "Informe de pedidos pendientes de procesamiento",
+  "storage_path": "pedidos_pendientes",
+  "source_hint": "Ruta de origen del informe a definir",
+  "columns": [
+    "ID_Pedido",
+    "Fecha_Pedido",
+    "Cliente",
+    "Producto",
+    "Cantidad",
+    "Precio_Unitario",
+    "Total",
+    "Estado",
+    "Fecha_Entrega_Estimada",
+    "Comentarios"
+  ]
+}
+
+
