@@ -5,13 +5,64 @@ from openpyxl.styles import Font
 from openpyxl.utils import get_column_letter
 from io import BytesIO
 from openpyxl.styles import numbers
+import re
 
-def conciliar_movimientos(contabilidad_path: str, df_extracto: pd.DataFrame) -> str:    
-    
+def _norm(s: str) -> str:
+    s = (s or "").strip().upper()
+    s = (
+        s.replace("Á","A").replace("É","E").replace("Í","I")
+         .replace("Ó","O").replace("Ú","U").replace("Ü","U")
+    )
+    s = re.sub(r"\s+", " ", s)
+    return s
 
-    df1 = contabilidad_path.copy()
-    df2 = df_extracto.copy()   
-    df1.columns = ['FECHA', 'Concepto Contabilidad', 'VALOR']
+def conciliar_movimientos(df_contabilidad: pd.DataFrame, df_extracto: pd.DataFrame) -> bytes:
+
+    df1 = df_contabilidad.copy()
+    df2 = df_extracto.copy()
+
+    # mapa normalizado, para soportar "Asiento " o "ASIENTO"
+    colmap = { _norm(c): c for c in df1.columns }
+
+    # detectar por nombre real
+    fecha_col = colmap.get("FECHA") or colmap.get("Fecha".upper())
+    mov_col   = colmap.get("MOVIMIENTO") or colmap.get("Movimiento".upper())
+    asiento_col = colmap.get("ASIENTO")
+
+    # Si es el archivo Movimiento banco noviembre.xlsx
+    if fecha_col and mov_col:
+        df1 = df1.rename(columns={
+            fecha_col: "FECHA",
+            mov_col: "VALOR",
+            **({asiento_col: "Concepto Contabilidad"} if asiento_col else {})
+        })
+    else:
+        # Si ya viene en el formato esperado, valida que existan 3 columnas
+        if df1.shape[1] < 3:
+            raise ValueError(f"Contabilidad tiene pocas columnas: {list(df1.columns)}")
+        # si ya trae FECHA, VALOR, Concepto Contabilidad, no toques
+        # si no, aquí es donde deberías mapear tu otro formato, no por posición
+        # por ahora, intenta detectar por nombres
+        colmap = { _norm(c): c for c in df1.columns }
+        fecha_col = colmap.get("FECHA")
+        valor_col = colmap.get("VALOR")
+        concepto_col = colmap.get("CONCEPTO CONTABILIDAD") or colmap.get("CONCEPTO") or colmap.get("DESCRIPCION")
+
+        if fecha_col and valor_col:
+            df1 = df1.rename(columns={
+                fecha_col: "FECHA",
+                valor_col: "VALOR",
+                **({concepto_col: "Concepto Contabilidad"} if concepto_col else {})
+            })
+        else:
+            raise ValueError(f"No detecté FECHA y VALOR en contabilidad. Columnas: {list(df1.columns)}")
+
+    # asegurar columna concepto
+    if "Concepto Contabilidad" not in df1.columns:
+        df1["Concepto Contabilidad"] = ""
+
+    # quedarnos con las 3 columnas finales
+    df1 = df1[["FECHA", "Concepto Contabilidad", "VALOR"]]
 
    # --- Preparación del df1 ---
     df1['FECHA'] = pd.to_datetime(df1['FECHA'], dayfirst=True, errors="coerce").dt.strftime("%d/%m/%Y")
@@ -31,15 +82,19 @@ def conciliar_movimientos(contabilidad_path: str, df_extracto: pd.DataFrame) -> 
     # Caso 1: Entradas en contabilidad y no en extracto
     caso_1 = merged_df[(merged_df['VALOR_Contabilidad'] > 0) & (merged_df['VALOR_Extracto'].isna())]
     caso_1 = caso_1.drop(['FECHA_Extracto', 'VALOR_Extracto','clave_unica','DESCRIPCION'], axis=1)
+    total_caso1 = caso_1['VALOR_Contabilidad'].sum()
     # Caso 2: Entradas en extracto y no en contabilidad
     caso_2 = merged_df[(merged_df['VALOR_Extracto'] > 0) & (merged_df['VALOR_Contabilidad'].isna())]
     caso_2 = caso_2.drop(['FECHA_Contabilidad', 'VALOR_Contabilidad','Concepto Contabilidad','clave_unica'], axis=1)
+    total_caso2 = caso_2['VALOR_Extracto'].sum()
     # Caso 3: Salidas en contabilidad y no en extracto
     caso_3 = merged_df[(merged_df['VALOR_Contabilidad'] < 0) & (merged_df['VALOR_Extracto'].isna())]
     caso_3 = caso_3.drop(['FECHA_Extracto', 'VALOR_Extracto','DESCRIPCION','clave_unica'], axis=1)
+    total_caso3 = caso_3['VALOR_Contabilidad'].sum()
     # Caso 4: Salidas en extracto y no en contabilidad
     caso_4 = merged_df[(merged_df['VALOR_Extracto'] < 0) & (merged_df['VALOR_Contabilidad'].isna())]
     caso_4 = caso_4.drop(['FECHA_Contabilidad', 'VALOR_Contabilidad','Concepto Contabilidad','clave_unica'], axis=1)
+    total_caso4 = caso_4['VALOR_Extracto'].sum()
     # Eliminar la columna de clave temporal
     consolidado.drop('clave_unica', axis=1, inplace=True)
 
@@ -85,18 +140,22 @@ def conciliar_movimientos(contabilidad_path: str, df_extracto: pd.DataFrame) -> 
 
             # 🔹 Hoja 2: Ejemplo de encabezados y tablas
             # Creamos un DataFrame de ejemplo
-            caso_1.to_excel(writer, sheet_name='Casos', index=False, startrow=4)
-            caso_2.to_excel(writer, sheet_name='Casos', index=False, startrow=4+len(caso_1)+3)
-            caso_3.to_excel(writer, sheet_name='Casos', index=False, startrow=4+len(caso_1) + len(caso_2) + 6)
-            caso_4.to_excel(writer, sheet_name='Casos', index=False, startrow=4+len(caso_1) + len(caso_2) + len(caso_3) + 9)
+            caso_1.to_excel(writer, sheet_name='Conceptos', index=False, startrow=4)
+            caso_2.to_excel(writer, sheet_name='Conceptos', index=False, startrow=4+len(caso_1)+3)
+            caso_3.to_excel(writer, sheet_name='Conceptos', index=False, startrow=4+len(caso_1) + len(caso_2) + 6)
+            caso_4.to_excel(writer, sheet_name='Conceptos', index=False, startrow=4+len(caso_1) + len(caso_2) + len(caso_3) + 9)
 
             # Accedemos a la hoja 'Ejemplo' para añadir los textos y encabezados
-            worksheet_ejemplo = writer.sheets['Casos']
+            worksheet_ejemplo = writer.sheets['Conceptos']
             worksheet_ejemplo.cell(row=1, column=1, value="Formato de Conciliación Bancaria").font = Font(bold=True, size=14)
             worksheet_ejemplo.cell(row=3, column=1, value="Caso 1: Entradas en Contabilidad no en Extracto").font = Font(bold=True)
             worksheet_ejemplo.cell(row=4+len(caso_1)+3, column=1, value="Caso 2: Entradas en Extracto y no en Contabilidad").font = Font(bold=True)
             worksheet_ejemplo.cell(row=4+len(caso_1) + len(caso_2) + 6, column=1, value="Caso 3: Salidas en Contabilidad no en Extracto").font = Font(bold=True)
             worksheet_ejemplo.cell(row=4+len(caso_1) + len(caso_2) + len(caso_3) + 9, column=1, value="Caso 4: Salidas en Extracto y no en Contabilidad").font = Font(bold=True)
+            worksheet_ejemplo.cell(row=5, column=4, value=f"Total Caso 1: ${total_caso1}").font = Font(bold=True)
+            worksheet_ejemplo.cell(row=5+len(caso_1)+2, column=4, value=f"Total Caso 2: ${total_caso2}").font = Font(bold=True)
+            worksheet_ejemplo.cell(row=5+len(caso_1) + len(caso_2) + 5, column=4, value=f"Total Caso 3: ${total_caso3}").font = Font(bold=True)
+            worksheet_ejemplo.cell(row=5+len(caso_1) + len(caso_2) + len(caso_3) + 7, column=4, value=f"Total Caso 4: ${total_caso4}").font = Font(bold=True)
 
             # Ajustar el ancho de las columnas y formatear fechas (usando openpyxl)
             for col_idx, col in enumerate(worksheet_ejemplo.columns, 1):
