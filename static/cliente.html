@@ -41,8 +41,21 @@
           body: formData,
         });
 
+        // Manejar errores HTTP antes de procesar la respuesta
         if (!response.ok) {
-          throw new Error(`Error en la API: ${response.statusText}`);
+          let errorMsg = `Error ${response.status}: ${response.statusText}`;
+          try {
+            const errorData = await response.json();
+            errorMsg = errorData.detail || errorMsg;
+            if (errorData.error_type) {
+              errorMsg += `\n\nTipo de error: ${errorData.error_type}`;
+            }
+          } catch (e) {
+            const errorText = await response.text();
+            errorMsg = errorText.substring(0, 1000) || errorMsg;
+          }
+          alert('Error en la conciliación:\n\n' + errorMsg);
+          return;
         }
 
         const blob = await response.blob();
@@ -59,6 +72,22 @@
 
       } catch (error) {
         alert('Error al procesar la solicitud: ' + error.message);
+      }
+      
+      // Manejar errores de respuesta HTTP
+      if (!response.ok) {
+        // Intentar leer el mensaje de error del servidor
+        response.json().then(data => {
+          const errorMsg = data.detail || `Error ${response.status}: ${response.statusText}`;
+          alert('Error en la conciliación:\n\n' + errorMsg);
+        }).catch(() => {
+          response.text().then(text => {
+            alert('Error en la conciliación:\n\n' + text.substring(0, 500));
+          }).catch(() => {
+            alert(`Error ${response.status}: ${response.statusText}`);
+          });
+        });
+        return;
       }
     });
   </script>

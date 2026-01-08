@@ -1,0 +1,217 @@
+<style>
+#conciliacionForm {
+  max-width: 400px;
+  margin: 40px auto;
+  padding: 24px;
+  background: #f9f9f9;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+  font-family: 'Segoe UI', Arial, sans-serif;
+}
+#conciliacionForm label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+#conciliacionForm input[type="file"] {
+  margin-bottom: 16px;
+  width: 100%;
+}
+#conciliacionForm button {
+  background: #0073e6;
+  color: #fff;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  margin-right: 8px;
+}
+#conciliacionForm button:hover {
+  background: #005bb5;
+}
+#statusMsg {
+  margin-bottom:16px;
+  color:#0073e6;
+  text-align: center;
+  padding: 12px;
+  border-radius: 4px;
+  word-wrap: break-word;
+}
+#statusMsg.error {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+#statusMsg.success {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+#statusMsg.info {
+  background-color: #d1ecf1;
+  color: #0c5460;
+  border: 1px solid #bee5eb;
+}
+#spinner {
+  display: none;
+  margin: 0 auto 16px auto;
+  width: 32px;
+  height: 32px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #0073e6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  0% { transform: rotate(0deg);}
+  100% { transform: rotate(360deg);}
+}
+@media (max-width: 500px) {
+  #conciliacionForm {
+    max-width: 95vw;
+    padding: 12px;
+  }
+}
+</style>
+
+<div style="max-width:400px;margin:40px auto 0 auto;">
+  <h2>Conciliación Bancaria</h2>
+  <p>Añade tu extracto bancario en PDF y tu libro de Contabilidad en Excel</p>
+</div>
+<div id="statusMsg"></div>
+<div id="spinner"></div>
+<form id="conciliacionForm">
+  <label>PDF Extracto:</label>
+  <input type="file" name="pdf_file" accept="application/pdf" required>
+  <label>Excel Contabilidad:</label>
+  <input type="file" name="contabilidad_file" accept=".xlsx" required>
+  <button type="submit">Enviar</button>
+  <button type="button" id="resetBtn">Limpiar</button>
+  <p>
+  Si tienes dudas, <a href="mailto:soporte@avanzabi.online">contáctanos aquí</a>.<br>
+  O escríbenos directamente a nuestro <a href="mailto:desarrollo@avanza616.onmicrosoft.com">correo de soporte</a>
+</p>
+</form>
+<script>
+const statusMsg = document.getElementById('statusMsg');
+const spinner = document.getElementById('spinner');
+const form = document.getElementById('conciliacionForm');
+const resetBtn = document.getElementById('resetBtn');
+
+function showMessage(text, type = 'info') {
+  statusMsg.textContent = text;
+  statusMsg.className = type;
+  statusMsg.style.display = 'block';
+}
+
+function hideMessage() {
+  statusMsg.style.display = 'none';
+  statusMsg.className = '';
+}
+
+form.addEventListener('submit', async function(e) {
+  e.preventDefault();
+  showMessage("Procesando archivos, por favor espera...", 'info');
+  spinner.style.display = "block";
+  form.querySelector('button[type="submit"]').disabled = true;
+
+  const formData = new FormData(form);
+
+  try {
+    const response = await fetch('https://conciliaciones.avanzabi.online/conciliacion-unificada/', {
+      method: 'POST',
+      body: formData
+    });
+
+    spinner.style.display = "none";
+    form.querySelector('button[type="submit"]').disabled = false;
+
+    // Manejar respuesta exitosa
+    if (response.ok) {
+      const contentType = response.headers.get('content-type');
+      
+      // Verificar que sea un Excel
+      if (contentType && contentType.includes('spreadsheetml')) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'Conciliacion_bancaria.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+        showMessage("¡Archivo generado y descargado correctamente!", 'success');
+      } else {
+        // Si no es Excel, puede ser un error en formato JSON
+        try {
+          const errorData = await response.json();
+          showMessage("Error: " + (errorData.detail || "Respuesta inesperada del servidor"), 'error');
+        } catch (jsonError) {
+          const text = await response.text();
+          showMessage("Error: Respuesta inesperada del servidor: " + text.substring(0, 200), 'error');
+        }
+      }
+    } else {
+      // Manejar errores HTTP (4xx, 5xx)
+      let errorMessage = `Error ${response.status}: ${response.statusText}`;
+      
+      try {
+        // Intentar leer el error como JSON
+        const errorData = await response.json();
+        errorMessage = errorData.detail || errorMessage;
+        
+        // Agregar tipo de error si está disponible
+        if (errorData.error_type) {
+          errorMessage += `\n\nTipo: ${errorData.error_type}`;
+        }
+        
+        // Si hay traceback, mostrar solo las primeras líneas relevantes
+        if (errorData.traceback) {
+          const tracebackLines = errorData.traceback.split('\n');
+          const relevantLines = tracebackLines
+            .filter(line => line.trim() && !line.includes('File "<'))
+            .slice(0, 5)
+            .join('\n');
+          if (relevantLines) {
+            errorMessage += `\n\nDetalles:\n${relevantLines}`;
+          }
+        }
+      } catch (jsonError) {
+        // Si no es JSON, intentar leer como texto
+        try {
+          const errorText = await response.text();
+          if (errorText) {
+            errorMessage = errorText.substring(0, 500);
+          }
+        } catch (textError) {
+          // Si todo falla, usar el mensaje por defecto
+          console.error('Error al leer respuesta:', textError);
+        }
+      }
+      
+      showMessage(errorMessage, 'error');
+      console.error('Error del servidor:', errorMessage);
+    }
+  } catch (err) {
+    // Manejar errores de red o conexión
+    spinner.style.display = "none";
+    form.querySelector('button[type="submit"]').disabled = false;
+    
+    let errorMsg = "Error de conexión con el servidor.";
+    if (err.message) {
+      errorMsg += "\n\n" + err.message;
+    }
+    
+    showMessage(errorMsg, 'error');
+    console.error('Error de conexión:', err);
+  }
+});
+
+resetBtn.addEventListener('click', function() {
+  form.reset();
+  hideMessage();
+});
+</script>
+

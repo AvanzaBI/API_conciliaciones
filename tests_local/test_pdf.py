@@ -9,7 +9,10 @@ class FakeUploadFile:
         self.file = open(path, "rb")
 
 if __name__ == "__main__":
-    pdf_path = os.path.join(os.getcwd(), "Formato movimiento diario bancolombia.pdf")
+    BASE_DIR = Path(__file__).resolve().parent          # .../tests_local
+    ARCHIVOS_DIR = BASE_DIR / "archivos"
+    
+    pdf_path = str(ARCHIVOS_DIR / "EXTRACTO AGOSTO 2025.pdf")
     up = FakeUploadFile(pdf_path)
     df = procesar_pdf(up)
 

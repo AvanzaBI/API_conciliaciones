@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from procesar_pdf import procesar_pdf
+from procesar_pdf import procesar_pdf_universal
 from unir_archivos import conciliar_movimientos
 from tests_local.utils_debug import make_run_dir, dump_csv, dump_excel
 
@@ -15,14 +15,17 @@ class FakeUploadFile:
 if __name__ == "__main__":
     run_dir = make_run_dir()
 
-    pdf_path = os.path.join(os.getcwd(), "Formato movimiento diario bancolombia.pdf")
-    xls_path = os.path.join(os.getcwd(), "Movimiento banco noviembre.xlsx")
+    BASE_DIR = Path(__file__).resolve().parent          # .../tests_local
+    ARCHIVOS_DIR = BASE_DIR / "archivos"
+
+    pdf_path = str(ARCHIVOS_DIR / "Extracto PDF.pdf")
+    xls_path = str(ARCHIVOS_DIR / "Movimiento Banco Contabilidad.xlsx")
 
     df_excel = pd.read_excel(xls_path)
     dump_csv(df_excel, run_dir, "01_excel_raw")
 
     up = FakeUploadFile(pdf_path)
-    df_pdf = procesar_pdf(up)
+    df_pdf = procesar_pdf_universal(up)
     dump_csv(df_pdf, run_dir, "02_pdf_df")
 
     # Si conciliar_movimientos lee el excel desde archivo, usa el path directo.
